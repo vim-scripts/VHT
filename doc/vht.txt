@@ -32,6 +32,7 @@ template source.
    2.2. Checkouting library              |vht-checkout-library|
    2.3. Commiting library                |vht-commit-library|
    2.4. Updating library                 |vht-update-library|
+   2.5. Checking regions names           |vht-check-regions|
 3. Various
    3.1. Show resources                   |vht-show|
 
@@ -52,7 +53,16 @@ site. This regions enclose in tags: >
 	<!-- #EndEditable -->
 
 Note: regionname MUST be unique in your document, when there will be more than
-one region of the same name contents of one of them will be lost.
+one region of the same name only contents of the first will be saved.
+
+Note: Region name MUST follow Vim variable name specification: variable name
+can be made up of letters, digits and '_'.  But it cannot start with a digit.
+
+                                         *vht-regionname-format*
+Opening tag of editable region MUST follow specification: >
+	^\s*<!-- #BeginEditable "[A-Za-z_][A-Za-z0-9_]*" -->\s*$'
+
+All tags have to be in separate lines.
 
 Paths to files in <img> and <a> tags should be relative to current file.
 
@@ -62,14 +72,17 @@ File, without regions marked as editable will be written to file
 "Templates/template1.vht" (counting from level of index.htmlmain file). 
 Great! You created your first Vim HTML template.
 
-Note: In Dreamweaver template files have extension .dwt . I don't have access
-to Dreamweaver and I am not 100% sure everything is 100% compatible, thus
-simple change to prevent too easy messing with files.
+Note: In Dreamweaver template files have extension .dwt . Because VHT isn't
+100% compatible (especially region names limitations) there is no direct
+support for .dwt files.
+
+All template operations have built-in security checks for region name
+specification. You can check it separately with |:VHTcheck| command.
 
 ------------------------------------------------------------------------------
-1.2. Creating document from template            *vht-create-document*
+1.2. Creating document from template     *vht-create-document*
 
-:VHTcheckout [{tmplname}]                       *:VHTcheckout*
+:VHTcheckout [{tmplname}]                *:VHTcheckout*
 	Now, when you have template you probably want to create new files
 	which base on it. Create new html file, and enter: >
 	    :VHTcheckout template1
@@ -83,9 +96,9 @@ simple change to prevent too easy messing with files.
 	    (<Enter> to abandon action): 
 
 ------------------------------------------------------------------------------
-1.3. Commiting template                         *vht-commit-template*
+1.3. Commiting template                  *vht-commit-template*
 
-:VHTcommit [{tmplname}]                         *:VHTcommit*
+:VHTcommit [{tmplname}]                  *:VHTcommit*
 	Sometimes you want to change template and make this changes available
 	in other file (or create new one). Do this with known command: >
 	    :VHTcommit
@@ -101,9 +114,9 @@ simple change to prevent too easy messing with files.
 	buffer - |b:var|).
 
 ------------------------------------------------------------------------------
-1.4. Updating file                              *vht-update-template*
+1.4. Updating file                       *vht-update-template*
 
-:VHTupdate [{tmplname}]                         *:VHTupdate*
+:VHTupdate [{tmplname}]                  *:VHTupdate*
 	After making change in template it is good to update other files dependant on
 	this template. Example: >
 	    :VHTupdate template1
@@ -154,9 +167,9 @@ and type command: >
 It will write library item to its destination declared in opening tag.
 
 ------------------------------------------------------------------------------
-2.2. Checkouting library                        *vht-checkout-library*
+2.2. Checkouting library                 *vht-checkout-library*
 
-:VHLcheckout [{libpath}]                        *:VHLcheckout*
+:VHLcheckout [{libpath}]                 *:VHLcheckout*
 	To insert library item at cursor position you need: >
 	    :VHLcheckout
 <       You will get list of existing library items (files with extensions .vhl and
@@ -171,9 +184,9 @@ It will write library item to its destination declared in opening tag.
 	In this case you should enter "test.vhl" or "Library/libitem.vhl"
 
 ------------------------------------------------------------------------------
-2.3. Commiting library                          *vht-commit-library*
+2.3. Commiting library                   *vht-commit-library*
 
-:VHLcommit [ all ]                              *:VHLcommit*
+:VHLcommit [ all ]                       *:VHLcommit*
 	When you made changes to library item and want to make those changes
 	available to other files type: >
 	    :VHLcommit
@@ -184,28 +197,41 @@ It will write library item to its destination declared in opening tag.
 	    :VHLcommit all
 
 ------------------------------------------------------------------------------
-2.4. Updating library                           *vht-update-library*
+2.4. Updating library                    *vht-update-library*
 
-:VHLupdate [ all ]                              *:VHLupdate*
+:VHLupdate [ all ]                       *:VHLupdate*
         When you want to update library item type: >
 	    :VHLupdate
 <       This will find current or last library item and make changes to
 	"repository".
 	If you want update all library items in current document enter: >
 	    :VHLupdate all
+------------------------------------------------------------------------------
+2.4. Checking regions names              *vht-check-regions*
+
+:VHTcheck                                *:VHTcheck*
+        With this command you check if you declared region names properly: >
+	    :VHTcheck
+<       If there are any wrong region names like
+	    <!-- #BeginEditable "This is header" --> ~
+	(spaces are not allowed in region names)
+	You will get message:
+	    Not all editable regions were safely declared. List of them: ~
+	     54:    <!-- #BeginEditable "This is header" --> ~
+	    End of operation. ~
 
 ==============================================================================
 3. Various
 
-3.1 Show resources                              *vht-show*
+3.1 Show resources                       *vht-show*
 
 Before using templates its good to see what you can use.
 
-:VHTshow                                        *:VHTshow*
+:VHTshow                                 *:VHTshow*
 	This command will show template which is currently assigned to your
-	document (NONE is there is no assigned template yet).
+	document (NONE if there is no assigned template yet).
                                         
-:VHLshow                                        *:VHLshow*
+:VHLshow                                 *:VHLshow*
 	This command will show libraries available in project.  Libraries are
 	files with extensions .vhl and .lbi in .htmlmain directory or Library
 	directory located there.

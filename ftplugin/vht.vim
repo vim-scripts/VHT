@@ -2,8 +2,8 @@
 " Author: Mikolaj Machowski ( mikmach AT wp DOT pl )
 "
 " License: GPL v. 2.0
-" Version: 1.1
-" Last_change: 18 May 2004
+" Version: 1.2
+" Last_change: 7 jun 2004
 " 
 " Replica of DreamWeaver(tm) templates and libraries.
 
@@ -25,6 +25,9 @@ command! -nargs=? VHLcheckout call VHL_Checkout(<q-args>)
 command! -nargs=0 VHTshow call VHT_Show("templates")
 command! -nargs=0 VHLshow call VHT_Show("libraries")
 
+" Check if editable regions are properly declared
+command! -nargs=0 VHTcheck echo VHT_Check()
+
 " ======================================================================
 " Main functions
 " ======================================================================
@@ -43,10 +46,16 @@ function! VHT_Commit(tmplname)
 		echomsg "VHT: Templates directory doesn't exist. Create it!"
 		return
 	endif
+
+	" Check if all regions are safely declared
+	if VHT_Check() != ''
+		echo VHT_Check()
+		return
+	endif
 		
 	" Save current position
-	let scol = col('.')
 	let sline = line('.')
+	let cpos = line(".") . " | normal!" . virtcol(".") . "|"
 
 	let curd = getcwd()
 	let filedir = expand('%:p:h')
@@ -112,7 +121,7 @@ function! VHT_Commit(tmplname)
 			let vhtfile = vhtdir.b:vhtemplate.'.vht'
 		else
 
-			call cursor(sline, scol)
+			silent exe cpos
 			return
 		endif
 
@@ -132,7 +141,7 @@ function! VHT_Commit(tmplname)
 		silent $d
 	endif
 
-	call cursor(sline, scol)
+	silent exe cpos
 
 endfunction
 
@@ -230,9 +239,14 @@ function! VHT_Update(tmplname)
 		return
 	endif
 
+	" Check if all regions are safely declared
+	if VHT_Check() != ''
+		echo VHT_Check()
+		return
+	endif
 
-	let scol = col('.')
 	let sline = line('.')
+	let cpos = line(".") . " | normal!" . virtcol(".") . "|"
 
 	let z_rez = @z
 
@@ -245,7 +259,7 @@ function! VHT_Update(tmplname)
 		else
 			continue
 		endif
-		exe 'let b:vht_'.regname.' = @z'
+		let b:vht_{regname} = @z
 
 	endwhile
 
@@ -256,7 +270,7 @@ function! VHT_Update(tmplname)
 	while search('<!--\s*#BeginEditable .*-->', 'W')
 		let regname = matchstr(getline('.'), '<!--\s*#BeginEditable\s*"\zs.\{-}\ze"')
 		if exists("b:vht_".regname)
-			exe 'let @z = b:vht_'.regname
+			let @z = b:vht_{regname}
 			silent put z
 		endif
 
@@ -268,7 +282,7 @@ function! VHT_Update(tmplname)
 		silent $d
 	endif
 
-	call cursor(sline, scol)
+	silent exe cpos
 
 endfunction
 " }}}
@@ -281,15 +295,15 @@ function! VHL_Commit(libitem)
 	let vhllevel = VHT_GetMainFileName(":p:h")
 
 	" Save current position
-	let scol = col('.')
 	let sline = line('.')
+	let cpos = line(".") . " | normal!" . virtcol(".") . "|"
 
 	if a:libitem == 'all'
 		normal! gg
 	    while search('<!--\s*#BeginLibraryItem ', 'W')
 			call VHL_Commit('')
 		endwhile
-		call cursor(sline, scol)
+		silent exe cpos
 		return
 	endif
 
@@ -300,7 +314,7 @@ function! VHL_Commit(libitem)
 	let line = search('<!--\s*#BeginLibraryItem ', 'bW')
 
 	if line == 0
-		call cursor(sline, scol)
+		silent exe cpos
 		return
 	endif
 
@@ -373,7 +387,7 @@ function! VHL_Commit(libitem)
 
 	call VHT_CD(curd)
 
-	call cursor(sline, scol)
+	silent exe cpos
 
 endfunction
 "
@@ -386,15 +400,15 @@ function! VHL_Update(libitem)
 	let vhllevel = VHT_GetMainFileName(":p:h")
 
 	" Save current position
-	let scol = col('.')
 	let sline = line('.')
+	let cpos = line(".") . " | normal!" . virtcol(".") . "|"
 
 	if a:libitem == 'all'
 		normal! gg
 	    while search('<!--\s*#BeginLibraryItem ', 'W')
 			call VHL_Update('')
 		endwhile
-		call cursor(sline, scol)
+		silent exe cpos
 		return
 	endif
 
@@ -412,7 +426,7 @@ function! VHL_Update(libitem)
 
 	" End if there is no LibItem above
 	if line == 0
-		call cursor(sline, scol)
+		silent exe cpos
 		return
 	endif
 
@@ -426,7 +440,7 @@ function! VHL_Update(libitem)
 	if filewritable(vhlfile) == 0
 		" Something is wrong with pathname. Abort now!
 		call VHT_CD(curd)
-		call cursor(sline, scol)
+		silent exe cpos
 		echomsg "VHL: Can't find this Library - check path."
 
 		return
@@ -449,7 +463,7 @@ function! VHL_Update(libitem)
 	endwhile
 
 	call VHT_CD(curd)
-	call cursor(sline, scol)
+	silent exe cpos
 
 endfunction
 "
@@ -461,7 +475,7 @@ function! VHL_Checkout(libitem)
 	let vhllevel = VHT_GetMainFileName(":p:h")
 
 	let sline = line('.')
-	let scol = col('.')
+	let cpos = line(".") . " | normal!" . virtcol(".") . "|"
 
 	" Put contents of @z to template file. Find .htmlmain to check where
 	" Templates is dir for them - following Dreamweaver.
@@ -498,7 +512,7 @@ function! VHL_Checkout(libitem)
 	if filereadable(vhlfile) != 1
 		echomsg "VHL: Not correct path to Library. Try Again!"
 		exe sline
-		call cursor(sline, scol)
+		silent exe cpos
 		return
 
 	else
@@ -531,7 +545,7 @@ function! VHL_Checkout(libitem)
 	endwhile
 
 	call VHT_CD(curd)
-	call cursor(sline, scol)
+	silent exe cpos
 
 endfunction
 "
@@ -579,6 +593,66 @@ endfunction
 
 " }}}
 
+" VHT_Check: check if templates were properly declared {{{
+" Description: Go through the file and check if tags around editable
+"              regions match rigid regexps.
+function! VHT_Check()
+
+	" Save position
+	let cpos = line(".") . " | normal!" . virtcol(".") . "|"
+
+	normal! gg
+
+	let badline = ''
+
+	while search('<!--\s*#BeginEditable.*-->', 'W')
+		if getline('.') !~ '^\s*<!--\s*#BeginEditable\s\+"[A-Za-z_][A-Za-z0-9_]*"\s*-->\s*$'
+			let badline = badline." ".line('.').":    ".getline('.')."\n"
+		endif
+	endwhile
+
+	normal! gg
+
+	while search('<!--\s*#EndEditable.*-->', 'W')
+		if getline('.') !~ '^\s*<!--\s*#EndEditable\s*-->\s*$'
+			let badline = badline." ".line('.').":    ".getline('.')."\n"
+		endif
+	endwhile
+
+	silent exe cpos
+
+	let g:badl = badline
+
+	if badline != ''
+		return "Not all editable regions were safely declared. List of them:\n"
+					\ .badline."End of operation."
+	else
+		return ''
+
+	endif
+
+endfunction
+
+" }}}
+" ======================================================================
+" Support for taglist.vim
+" ======================================================================
+" Sets Tlist_Ctags_Cmd for taglist.vim and regexps for ctags {{{
+if !exists("g:tlist_html_settings") 
+	let g:tlist_html_settings = 'html;a:Anchors;e:Editable regions;l:Libraries'
+endif
+
+if exists("Tlist_Ctags_Cmd")
+	let s:html_ctags = Tlist_Ctags_Cmd
+else
+	let s:html_ctags = 'ctags' " Configurable?
+endif
+
+let Tlist_Ctags_Cmd = s:html_ctags .' --langdef=html --langmap=html:.html.htm'
+\.' --regex-html="/ #BeginEditable \"([A-Za-z_][A-Za-z0-9_]*)\"/\1/e,editable/"'
+\.' --regex-html="/ #BeginLibraryItem \"([^\"]*)\"/\1/l,library/"'
+
+" }}}
 " ======================================================================
 " Auxiliary functions
 " ======================================================================
@@ -605,11 +679,11 @@ endfunction
 " links
 function! VHT_CollapseLinks(line)
 	" Update links in read file - up to EndLibraryItem
-	if a:line =~? '\(\(href\|src\|location\)\s*=\|url(\)'
+	if a:line =~? '\(\(href\|src\|location\|window\.open\)\s*=\|url(\)'
 		if a:line =~? 'url('
 			let link = matchstr(a:line, "url(\\('\\|\"\\)\\?\\zs.\\{-}\\ze\\1)")
 		else
-			let link = matchstr(a:line, "\\(href\\|src\\|location\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
+			let link = matchstr(a:line, "\\(href\\|src\\|location\\|window\\.open\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
 		endif
 		" Check for protocols and # or filereadable() is enough?
 		if !filereadable(link)
@@ -632,11 +706,11 @@ function! VHT_ExpandLinks(line)
 
 	let line = a:line
 
-	if line =~? '\(\(href\|src\|location\)\s*=\|url(\)'
+	if line =~? '\(\(href\|src\|location\|window\.open\)\s*=\|url(\)'
 		if line =~? 'url('
 			let link = matchstr(line, "url(\\('\\|\"\\)\\?\\zs.\\{-}\\ze\\1)")
 		else
-			let link = matchstr(line, "\\(href\\|src\\|location\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
+			let link = matchstr(line, "\\(href\\|src\\|location\\|window\\.open\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
 		endif
 		if !filereadable(link)
 			return line
