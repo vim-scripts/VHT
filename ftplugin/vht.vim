@@ -2,8 +2,8 @@
 " Author: Mikolaj Machowski ( mikmach AT wp DOT pl )
 "
 " License: GPL v. 2.0
-" Version: 1.2
-" Last_change: 7 jun 2004
+" Version: 1.3
+" Last_change: 21 jun 2004
 " 
 " Replica of DreamWeaver(tm) templates and libraries.
 
@@ -648,9 +648,11 @@ else
 	let s:html_ctags = 'ctags' " Configurable?
 endif
 
-let Tlist_Ctags_Cmd = s:html_ctags .' --langdef=html --langmap=html:.html.htm'
-\.' --regex-html="/ #BeginEditable \"([A-Za-z_][A-Za-z0-9_]*)\"/\1/e,editable/"'
-\.' --regex-html="/ #BeginLibraryItem \"([^\"]*)\"/\1/l,library/"'
+if Tlist_Ctags_Cmd !~ '#BeginEditable'
+	let Tlist_Ctags_Cmd = s:html_ctags .' --langdef=html --langmap=html:.html.htm'
+	\.' --regex-html="/ #BeginEditable \"([A-Za-z_][A-Za-z0-9_]*)\"/\1/e,editable/"'
+	\.' --regex-html="/ #BeginLibraryItem \"([^\"]*)\"/\1/l,library/"'
+endif
 
 " }}}
 " ======================================================================
@@ -679,11 +681,11 @@ endfunction
 " links
 function! VHT_CollapseLinks(line)
 	" Update links in read file - up to EndLibraryItem
-	if a:line =~? '\(\(href\|src\|location\|window\.open\)\s*=\|url(\)'
-		if a:line =~? 'url('
-			let link = matchstr(a:line, "url(\\('\\|\"\\)\\?\\zs.\\{-}\\ze\\1)")
+	if a:line =~? '\(\(href\|src\|location\)\s*=\|\(window\.open\|url\)(\)'
+		if a:line =~? '\(window\.open\|url\)('
+			let link = matchstr(a:line, "\\(window\\.open\\|url\\)(\\('\\|\"\\)\\?\\zs.\\{-}\\ze\\2)")
 		else
-			let link = matchstr(a:line, "\\(href\\|src\\|location\\|window\\.open\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
+			let link = matchstr(a:line, "\\(href\\|src\\|location\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
 		endif
 		" Check for protocols and # or filereadable() is enough?
 		if !filereadable(link)
@@ -706,11 +708,11 @@ function! VHT_ExpandLinks(line)
 
 	let line = a:line
 
-	if line =~? '\(\(href\|src\|location\|window\.open\)\s*=\|url(\)'
-		if line =~? 'url('
-			let link = matchstr(line, "url(\\('\\|\"\\)\\?\\zs.\\{-}\\ze\\1)")
+	if line =~? '\(\(href\|src\|location\)\s*=\|\(window\.open\|url\)(\)'
+		if line =~? '\(window\.open\|url\)('
+			let link = matchstr(line, "\\(window\\.open\\|url\\)(\\('\\|\"\\)\\?\\zs.\\{-}\\ze\\2)")
 		else
-			let link = matchstr(line, "\\(href\\|src\\|location\\|window\\.open\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
+			let link = matchstr(line, "\\(href\\|src\\|location\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
 		endif
 		if !filereadable(link)
 			return line
