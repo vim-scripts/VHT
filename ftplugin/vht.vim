@@ -2,40 +2,33 @@
 " Author: Mikolaj Machowski ( mikmach AT wp DOT pl )
 "
 " License: GPL v. 2.0
-" Version: 1.0
-" Last_change: 15 May 2004
+" Version: 1.1
+" Last_change: 18 May 2004
 " 
-" Replica of DreamWeaver(tm) templates.
-" Somewhere in file hierarchy exists .vht file which is
-" template for all files in current file tree. Areas of
-" modifications are marked by
-" <!-- #BeginEditable "regionname" -->
-" <!-- #EndEditable -->
-" tags.
-"
-" Plugin makes possible to write locally made modifications
-" to template and update template without losing changes in Editable
-" areas. And change all links to make them local.
-"
-" TODO?
-" - automation of update/commit with BufEnter/BufWrite
+" Replica of DreamWeaver(tm) templates and libraries.
 
 " ======================================================================
 " Commands
 " ======================================================================
 
+" Templates
 command! -nargs=? VHTcommit call VHT_Commit(<q-args>)
 command! -nargs=? VHTupdate call VHT_Update(<q-args>)
 command! -nargs=? VHTcheckout call VHT_Checkout(<q-args>)
 
+" Libraries
 command! -nargs=? VHLcommit call VHL_Commit(<q-args>)
 command! -nargs=? VHLupdate call VHL_Update(<q-args>)
 command! -nargs=? VHLcheckout call VHL_Checkout(<q-args>)
 
+" Show available templates/libraries
+command! -nargs=0 VHTshow call VHT_Show("templates")
+command! -nargs=0 VHLshow call VHT_Show("libraries")
+
 " ======================================================================
 " Main functions
 " ======================================================================
-" VHT_Commit: responsible for writing noneditable area to .vht file {{{
+" VHT_Commit: write noneditable area to .vht file {{{
 " Description: Write file line by line to register, skipping editable
 " 		areas, then overwriting .vht file. Meantime it will extract
 " 		links and change them to fullpaths ":p".
@@ -111,7 +104,7 @@ function! VHT_Commit(tmplname)
 	else
 		let vhtname = input("You didn't specify Template name.\n".
 				   \   "Enter name of existing template -\n".
-				   \   VHT_ListFiles(vhtdir, "vht").
+				   \   VHT_ListFiles(vhtdir, 'vht').
 				   \   "\nOr a new one (<Enter> to abandon action): ")
 
 		if vhtname != ''
@@ -196,32 +189,9 @@ function! VHT_Checkout(tmplname)
 
 	normal! gg
 
-	let z_rez = @z
-	let @z = ''
-
 	while line('.') <= line('$')
 
-		let line = getline('.')
-
-		if line =~? '\(href\|src\)\s*='
-			let link = matchstr(line, "\\(href\\|src\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
-			if link !~ '^\(https\?\|s\?ftp\|\#\|javascript:\|mailto:\)'
-				let rellink = VHT_RelPath(link, expand('%:p'))
-				" Now. Replace old name with new one... s/// and
-				" substitute() ma be tricky because of special chars.
-				" escape()? What chars should be escaped?
-				let esclink = escape(link, ' \.?')
-				let escrellink = escape(rellink, ' \.?')
-				let line = substitute(line, esclink, escrellink, 'ge')
-			endif
-		endif
-
-		" Prevent inserting blank line at the beginning
-		if @z == ''
-			let @z = line
-		else
-			let @z = @z."\n".line
-		endif
+		call VHT_CollapseLinks(getline('.'))
 
 		" Service last line without infinite loop
 		if line('.') == line('$')
@@ -229,16 +199,11 @@ function! VHT_Checkout(tmplname)
 		endif
 
 		normal! j
+
 	endwhile
 
 	" Return to current dir
 	call VHT_CD(curd)
-
-	" Delete file and put @z content
-	silent normal! gg"_dG
-	silent put! z
-
-	let @z = z_rez
 
 	if getline('$') == ''
 		silent $d
@@ -413,7 +378,7 @@ function! VHL_Commit(libitem)
 endfunction
 "
 " }}}
-" VHL_Update: Update contents of current/lost library in file. {{{
+" VHL_Update: update contents of current/last library in file. {{{
 " Description: Find last BeginLibraryItem and update area between tags
 " tags to file described in argument of start tag
 function! VHL_Update(libitem)
@@ -477,7 +442,11 @@ function! VHL_Update(libitem)
 	exe 'silent read '.vhlfile
 
 	" Change links in Library from full to relative
-	call VHT_CollapseLibLinks()
+	while getline('.') !~ '<!--\s*#EndLibraryItem '
+		call VHT_CollapseLinks(getline('.'))
+		normal! j
+
+	endwhile
 
 	call VHT_CD(curd)
 	call cursor(sline, scol)
@@ -555,7 +524,11 @@ function! VHL_Checkout(libitem)
 	exe sline + 1
 
 	" Change links in Library from full to relative
-	call VHT_CollapseLibLinks()
+	while getline('.') !~ '<!--\s*#EndLibraryItem '
+		call VHT_CollapseLinks(getline('.'))
+		normal! j
+
+	endwhile
 
 	call VHT_CD(curd)
 	call cursor(sline, scol)
@@ -563,11 +536,126 @@ function! VHL_Checkout(libitem)
 endfunction
 "
 " }}}
+
+" VHT_Show: Show templates/libraries available in project {{{
+" Description: Find files through ListFiles function depending on
+" profile
+function! VHT_Show(profile)
+
+	let projname = VHT_GetMainFileName(":p:h")
+
+	if a:profile == 'templates'
+
+		" Check if Templates directory exists
+		let vhtlevel = VHT_GetMainFileName(":p:h")
+		if isdirectory(vhtlevel.'/Templates/') != 0
+			let vhtdir = vhtlevel.'/Templates/'
+		else
+			echomsg "VHT: Templates directory doesn't exist. Create it!"
+			return
+		endif
+
+		" Check if current file has template assigned
+		if exists("b:vhtemplate")
+			let curtmpl = b:vhtemplate
+		else
+			let curtmpl = 'NONE'
+		endif
+
+		echo 'Current template: '.curtmpl."\n".
+		   \ 'Templates available in project '.projname." :\n".
+		   \ VHT_ListFiles(vhtdir, 'vht')
+
+	elseif a:profile == 'libraries'
+
+		let vhllevel = VHT_GetMainFileName(":p:h")
+
+		echo "Libraries available in project ".projname." :\n".
+			  \ VHT_ListFiles(vhllevel, 'vhl')
+
+	endif
+
+endfunction
+
+" }}}
+
 " ======================================================================
 " Auxiliary functions
 " ======================================================================
-" Many of these functions are coming from vim-latexSuite project
-" 		http://vim-latex.sourceforge.net
+" VHT_ListFiles: give list of templates or libraries {{{
+" Description: cd to template/library dir and get list of files, remove
+" extensions
+function! VHT_ListFiles(vhtdir, ext)
+	let curd = getcwd()
+	call VHT_CD(a:vhtdir)
+	if a:ext == 'vht'
+		let filelist = glob("*")
+		let filelist = substitute(filelist, '\.vht', '', 'ge')
+	elseif a:ext == 'vhl'
+		let filelist = globpath(".,Library", '*.\(vhl\|lbi\)')
+		let filelist = substitute(filelist, '\(^\|\n\)\..', '\1', 'ge')
+	endif
+	call VHT_CD(curd)
+	return filelist
+endfunction
+
+" }}}
+" VHT_CollapseLinks: Change full paths of links to relative {{{
+" Description: go through read file up to End LibraryItem and change
+" links
+function! VHT_CollapseLinks(line)
+	" Update links in read file - up to EndLibraryItem
+	if a:line =~? '\(\(href\|src\|location\)\s*=\|url(\)'
+		if a:line =~? 'url('
+			let link = matchstr(a:line, "url(\\('\\|\"\\)\\?\\zs.\\{-}\\ze\\1)")
+		else
+			let link = matchstr(a:line, "\\(href\\|src\\|location\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
+		endif
+		" Check for protocols and # or filereadable() is enough?
+		if !filereadable(link)
+			return
+		endif
+		let rellink = VHT_RelPath(link, expand('%:p'))
+		" What chars should be escaped?
+		let esclink = escape(link, ' \.?')
+		let escrellink = escape(rellink, ' \.?')
+		" Should changing of paths be 'g'lobal or not?
+		exe 'silent s+'.esclink.'+'.escrellink.'+e'
+	endif
+
+endfunction
+
+" }}}
+" VHT_ExpandLinks: Change names in links from relative to full path {{{
+" Description: take line and change names if necessary
+function! VHT_ExpandLinks(line)
+
+	let line = a:line
+
+	if line =~? '\(\(href\|src\|location\)\s*=\|url(\)'
+		if line =~? 'url('
+			let link = matchstr(line, "url(\\('\\|\"\\)\\?\\zs.\\{-}\\ze\\1)")
+		else
+			let link = matchstr(line, "\\(href\\|src\\|location\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
+		endif
+		if !filereadable(link)
+			return line
+		endif
+		let fulllink = fnamemodify(link, ':p')
+		" What chars should be escaped?
+		let esclink = escape(link, ' \.?')
+		let escfulllink = escape(fulllink, ' \.?')
+		let line = substitute(line, link, escfulllink, 'e')
+	endif
+
+	return line
+
+endfunction
+
+" }}}
+" ----------------------------------------------------------------------
+" These functions (with cosmetic changes) are coming from vim-latexSuite
+" project - http://vim-latex.sourceforge.net
 " VHT_GetMainFileName: gets the name of the root html file. {{{
 " Description:  returns the full path name of the main file.
 "               This function checks for the existence of a .htmlmain file
@@ -703,74 +791,5 @@ function! VHT_RelPath(explfilename,texfilename)
 	let relpath = subrelpath.path1
 	return escape(VHT_NormalizePath(relpath), ' ')
 endfunction " }}}
-" ----------------------------------------------------------------------
-" VHT_ListFiles: give list of templates or libraries {{{
-" Description: cd to template/library dir and get list of files, remove
-" extensions
-function! VHT_ListFiles(vhtdir, ext)
-	let curd = getcwd()
-	call VHT_CD(a:vhtdir)
-	if a:ext == 'vht'
-		let filelist = glob("*")
-		let filelist = substitute(filelist, '\.vht', '', 'ge')
-	elseif a:ext == 'vhl'
-		let filelist = globpath(".,Library", '*.\(vhl\|lbi\)')
-		let filelist = substitute(filelist, '\(^\|\n\)\..', '\1', 'ge')
-	endif
-	call VHT_CD(curd)
-	return filelist
-endfunction
-
-" }}}
-" VHT_CollapseLibLinks: Change full paths of Library links to relative {{{
-" Description: go through read file up to End LibraryItem and change
-" links
-function! VHT_CollapseLibLinks()
-	" Update links in read file - up to EndLibraryItem
-	while getline('.') !~ '<!--\s*#EndLibraryItem '
-		if getline('.') =~? '\(href\|src\)\s*='
-			let link = matchstr(getline('.'), "\\(href\\|src\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
-			if link !~ '^\(https\?\|s\?ftp\|\#\|javascript:\|mailto:\)'
-				let rellink = VHT_RelPath(link, expand('%:p'))
-				" Now. Replace old name with new one... s/// and
-				" substitute() ma be tricky because of special chars.
-				" escape()? What chars should be escaped?
-				let esclink = escape(link, ' \.?')
-				let escrellink = escape(rellink, ' \.?')
-				exe 'silent s+'.esclink.'+'.escrellink.'+ge'
-			endif
-		endif
-
-		normal! j
-
-	endwhile
-
-endfunction
-
-" }}}
-" VHT_ExpandLinks: Change names in links from relative to full path {{{
-" Description: take line and change names if necessary
-function! VHT_ExpandLinks(line)
-
-	let line = a:line
-
-	if line =~? '\(href\|src\)\s*='
-		let link = matchstr(line, "\\(href\\|src\\)\\s\*=\\s\*\\('\\|\"\\)\\zs.\\{-}\\ze\\2")
-		if link !~ '^\(https\?\|s\?ftp\|\#\|javascript:\|mailto:\)'
-			let fulllink = fnamemodify(link, ":p")
-			" Now. Replace old name with new one... s/// and
-			" substitute() ma be tricky because of special chars.
-			" escape()? What chars should be escaped?
-			" let esclink = escape(link, ' \.?')
-			let escfulllink = escape(fulllink, ' \.?')
-			let line = substitute(line, link, escfulllink, 'ge')
-		endif
-	endif
-
-	return line
-
-endfunction
-
-" }}}
 
 " vim:fdm=marker:ff=unix:noet:ts=4:sw=4:nowrap
