@@ -1,0 +1,9 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=988
+
+VHT is Vim implementation of Macromedia Dreamweaver(tm) templates and libraries. Templates make possible to share the same document template across whole project, libraries allow for sharing the same snippet of code in many documents. This plugin makes possible to commit and update code from repositories and take care about file paths in links and image tags, always changing them to be relative to currently edited file.
+
+VHT doesn't provide immediate way to propagate changes across whole site. There is too many ways to maintain project in Vim. From session files, through project plugins from vim-online to simple file with list of files and opening it with "vim `cat fileslist`".
+
+All commands work nice with :argdo, :windo, :bufdo set of commands.
+But you have previously set b:vhtemplate for each file.
+
