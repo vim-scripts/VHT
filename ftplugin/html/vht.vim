@@ -1,32 +1,50 @@
 " HTML templates
 " Author: Mikolaj Machowski ( mikmach AT wp DOT pl )
-"
 " License: GPL v. 2.0
-" Version: 1.3
-" Last_change: 21 jun 2004
+" Version: 1.4
+" Last_change: 25 aug 2004
 " 
 " Replica of DreamWeaver(tm) templates and libraries.
+
+" Initialization {{{
+set nocp
+let s:save_cpo= &cpo
+set cpo&vim
+
+if exists("loaded_vht")
+ finish
+endif
+let g:loaded_vht = 1
+
+" }}}
 
 " ======================================================================
 " Commands
 " ======================================================================
-
-" Templates
+" Templates {{{
 command! -nargs=? VHTcommit call VHT_Commit(<q-args>)
 command! -nargs=? VHTupdate call VHT_Update(<q-args>)
 command! -nargs=? VHTcheckout call VHT_Checkout(<q-args>)
+command! -nargs=? VHTstrip call VHT_Strip(<q-args>)
+command! -nargs=? VHTinsert call VHT_Insert(<q-args>)
 
-" Libraries
+" }}}
+" Libraries {{{
 command! -nargs=? VHLcommit call VHL_Commit(<q-args>)
 command! -nargs=? VHLupdate call VHL_Update(<q-args>)
 command! -nargs=? VHLcheckout call VHL_Checkout(<q-args>)
+command! -nargs=? VHLinsert call VHL_Insert(<q-args>)
 
-" Show available templates/libraries
+" }}}
+" Show available templates/libraries {{{
 command! -nargs=0 VHTshow call VHT_Show("templates")
 command! -nargs=0 VHLshow call VHT_Show("libraries")
 
-" Check if editable regions are properly declared
+" }}}
+" Check if editable regions are properly declared {{{
 command! -nargs=0 VHTcheck echo VHT_Check()
+
+" }}}
 
 " ======================================================================
 " Main functions
@@ -48,8 +66,9 @@ function! VHT_Commit(tmplname)
 	endif
 
 	" Check if all regions are safely declared
-	if VHT_Check() != ''
-		echo VHT_Check()
+	let vhtcheck = VHT_Check()
+	if vhtcheck != ''
+		echo vhtcheck
 		return
 	endif
 		
@@ -121,27 +140,27 @@ function! VHT_Commit(tmplname)
 			let vhtfile = vhtdir.b:vhtemplate.'.vht'
 		else
 
-			silent exe cpos
+			silent! exe cpos
 			return
 		endif
 
 	endif
 
-	exe "below 1split ".vhtfile
-	silent normal! gg"_dG
-	silent put! z
-	write
-	exe "bwipe ".vhtfile
+	silent! exe "below 1split ".vhtfile
+	silent! normal! gg"_dG
+	silent! put! z
+	silent! write
+	silent! exe "bwipe ".vhtfile
 	let @z = z_rez
 
 	" Return to current dir
 	call VHT_CD(curd)
 
 	if getline('$') == ''
-		silent $d
+		silent! $d
 	endif
 
-	silent exe cpos
+	silent! exe cpos
 
 endfunction
 
@@ -240,8 +259,9 @@ function! VHT_Update(tmplname)
 	endif
 
 	" Check if all regions are safely declared
-	if VHT_Check() != ''
-		echo VHT_Check()
+	let vhtcheck = VHT_Check()
+	if vhtcheck != ''
+		echo vhtcheck
 		return
 	endif
 
@@ -283,6 +303,73 @@ function! VHT_Update(tmplname)
 	endif
 
 	silent exe cpos
+
+endfunction
+" }}}
+" VHT_Strip: remove current/last/all editable areas tags from file {{{
+" Description: Go to last opening tag, s/// it, go to the first closing
+"              tag, s/// it and return to start position.
+"              Use s/// and not g// to preserve line numbering
+function! VHT_Strip(all)
+
+	let cpos = line(".") . " | normal!" . virtcol(".") . "|"
+
+	if a:all == ''
+		normal! j
+
+		if search('<!--\s*#BeginEditable .*-->', 'bW')
+			silent! s/<!--\s*#BeginEditable.\{-}-->//e
+			call search('<!--\s*#EndEditable ', 'W')
+			silent! s/<!--\s*#EndEditable.\{-}-->//e
+			silent! exe cpos
+			return
+
+		else
+			echo "Could't find editable region, exit."
+			silent! exe cpos
+			return
+
+		endif
+		
+	elseif a:all == 'all'
+		silent! %s/<!--\s*#BeginEditable.\{-}-->//ge
+		silent! %s/<!--\s*#EndEditable.\{-}-->//ge
+
+	else
+		echo "Argument not supported, exit."
+
+	endif
+
+	silent! exe cpos
+	return
+
+endfunction
+" }}}
+" VHT_Insert: insert template of editable region {{{
+" Description: 
+function! VHT_Insert(name)
+
+	if a:name == '' || !exists("a:name")
+		let name = ''
+
+	else
+		if a:name =~ '^[A-Za-z_][A-Za-z0-9_]*'
+			let name = a:name
+		else
+			echo "Declared region name contains illegal characters, check help for details"
+			return
+		endif
+
+	endif
+
+	let beginline = '<!-- #BeginEditable "'.name.'" -->'
+
+	put =beginline
+	put ='<!-- #EndEditable -->'
+
+	normal! k
+
+	return
 
 endfunction
 " }}}
@@ -328,6 +415,15 @@ function! VHL_Commit(libitem)
 	let @z = ''
 
 	let libname = matchstr(getline('.'), '<!--\s*#BeginLibraryItem\s*"\zs.\{-}\ze"')
+
+	" Add extension to library name if user forgot about that
+	if libname !~ '\.vhl'
+		"call substitute(getline('.'), libname, libname.'\.vhl', '')
+		silent! exe 's/BeginLibraryItem\s*"'.libname.'/\0\.vhl/e'
+		let libname = libname.'.vhl'
+		echo "Don't forget to add .vhl extension to Library Item name!"
+	endif
+
 	if libname[0] == '~'
 		let vhlfile = fnamemodify(libname, ':p')
 	elseif libname[0] !~ '[\/]'
@@ -550,6 +646,68 @@ function! VHL_Checkout(libitem)
 endfunction
 "
 " }}}
+" VHL_Strip: remove current/last/all library tags from file {{{
+" Description: Go to last opening tag, s/// it, go to the first closing
+"              tag, s/// it and return to start position.
+"              Use s/// and not g// to preserve line numbering
+function! VHL_Strip(all)
+
+	let cpos = line(".") . " | normal!" . virtcol(".") . "|"
+
+	if a:all == ''
+		normal! j
+
+		if search('<!--\s*#BeginLibraryItem .*-->', 'bW')
+			silent! s/<!--\s*#BeginLibraryItem.\{-}-->//e
+			call search('<!--\s*#EndLibraryItem ', 'W')
+			silent! s/<!--\s*#EndLibraryItem.\{-}-->//e
+			silent! exe cpos
+			return
+
+		else
+			echo "Could't find library item, exit."
+			silent! exe cpos
+			return
+
+		endif
+		
+	elseif a:all == 'all'
+		silent! %s/<!--\s*#BeginLibraryItem.\{-}-->//e
+		silent! %s/<!--\s*#EndLibraryItem.\{-}-->//e
+
+	else
+		echo "Argument not supported, exit."
+
+	endif
+
+	silent! exe cpos
+	return
+
+endfunction
+" }}}
+" VHL_Insert: insert template of editable region {{{
+" Description: 
+function! VHL_Insert(name)
+
+	if a:name != '' && a:name !~ '\.vhl$'
+		let name = a:name.'.vhl'
+
+	else
+		let name = a:name
+
+	endif
+
+	let beginline = '<!-- #BeginLibraryItem "'.name.'" -->'
+
+	put =beginline
+	put ='<!-- #EndLibraryItem -->'
+
+	normal! k
+
+	return
+
+endfunction
+" }}}
 
 " VHT_Show: Show templates/libraries available in project {{{
 " Description: Find files through ListFiles function depending on
@@ -643,13 +801,13 @@ if !exists("g:tlist_html_settings")
 endif
 
 if exists("Tlist_Ctags_Cmd")
-	let s:html_ctags = Tlist_Ctags_Cmd
+	let s:html_ctags = g:Tlist_Ctags_Cmd
 else
 	let s:html_ctags = 'ctags' " Configurable?
 endif
 
-if Tlist_Ctags_Cmd !~ '#BeginEditable'
-	let Tlist_Ctags_Cmd = s:html_ctags .' --langdef=html --langmap=html:.html.htm'
+if exists("Tlist_Ctags_Cmd") && g:Tlist_Ctags_Cmd !~ '#BeginEditable' || !exists("Tlist_Ctags_Cmd")
+	let g:Tlist_Ctags_Cmd = s:html_ctags .' --langdef=html --langmap=html:.html.htm'
 	\.' --regex-html="/ #BeginEditable \"([A-Za-z_][A-Za-z0-9_]*)\"/\1/e,editable/"'
 	\.' --regex-html="/ #BeginLibraryItem \"([^\"]*)\"/\1/l,library/"'
 endif
